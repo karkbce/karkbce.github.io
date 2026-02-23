@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UK General Election Opinion Polling (Live from Wikipedia)</title>
+  <meta name="description" content="Live polling chart and polling table for the next UK general election, sourced from Wikipedia." />
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #fff;
+      --text: #1f2328;
+      --muted: #57606a;
+      --line: #d0d7de;
+      --accent: #0969da;
+      --error-bg: #fff1f0;
+      --error-line: #cf222e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% -5%, #e8eefc 0, transparent 40%),
+        radial-gradient(circle at 95% 0%, #e7f7ef 0, transparent 35%),
+        var(--bg);
+      font: 16px/1.45 Georgia, "Times New Roman", serif;
+    }
+    .page { max-width: 1200px; margin: 0 auto; padding: 20px 14px 36px; }
+    .hero {
+      background: rgba(255,255,255,0.86);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 8px 20px rgba(16,24,40,.04);
+    }
+    h1 { margin: 0 0 8px; font-size: clamp(1.35rem, 2.3vw, 2rem); line-height: 1.15; }
+    .subtitle { margin: 0; color: var(--muted); }
+    .status {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f6f8fa;
+      color: var(--muted);
+    }
+    .status.error {
+      background: var(--error-bg);
+      border-color: var(--error-line);
+      color: #a40e26;
+    }
+    .panel {
+      margin-top: 14px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(16,24,40,.04);
+    }
+    .panel-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(to bottom, #fff, #f8fafc);
+      font-weight: 700;
+    }
+    .panel-body { padding: 12px; }
+    .chart img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+    .chart .thumbcaption, .chart figcaption { margin-top: 10px; color: var(--muted); font-size: .9rem; }
+    .table-scroller { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.wikitable {
+      width: 100%;
+      min-width: 920px;
+      border-collapse: collapse;
+      margin: 0;
+      background: #fff;
+      font-size: 13px;
+    }
+    .wikitable th, .wikitable td {
+      border: 1px solid #a2a9b1;
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+    .wikitable th {
+      background: #eaecf0;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .wikitable tr:nth-child(even) td { background: #f8f9fa; }
+    .meta, footer { margin-top: 12px; color: var(--muted); font-size: .88rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .mw-editsection, sup.reference, .reference, .mw-cite-backlink, .navbox, .reflist { display: none !important; }
+    @media (max-width: 640px) {
+      .page { padding: 14px 10px 24px; }
+      .hero, .panel { border-radius: 12px; }
+      .panel-body { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <h1>UK General Election Opinion Polling</h1>
+      <p class="subtitle">Live polling trend graphic and latest polling table loaded from Wikipedia.</p>
+    </section>
+
+    <div id="status" class="status">Loading polling graphic and table from Wikipedia…</div>
+
+    <section id="chartPanel" class="panel" hidden>
+      <div class="panel-head">Polling Trend Graphic</div>
+      <div class="panel-body chart" id="chartSlot"></div>
+    </section>
+
+    <section id="tablePanel" class="panel" hidden>
+      <div class="panel-head">Opinion Polling Table</div>
+      <div class="panel-body">
+        <div class="table-scroller" id="tableSlot"></div>
+      </div>
+    </section>
+
+    <div id="meta" class="meta" hidden></div>
+
+    <footer>
+      Source:
+      <a href="https://en.wikipedia.org/wiki/Opinion_polling_for_the_next_United_Kingdom_general_election" target="_blank" rel="noopener noreferrer">
+        Wikipedia – Opinion polling for the next UK general election
+      </a>
+    </footer>
+  </main>
+
+  <script>
+    (async function () {
+      const statusEl = document.getElementById("status");
+      const chartPanel = document.getElementById("chartPanel");
+      const tablePanel = document.getElementById("tablePanel");
+      const chartSlot = document.getElementById("chartSlot");
+      const tableSlot = document.getElementById("tableSlot");
+      const metaEl = document.getElementById("meta");
+
+      const PAGE = "Opinion_polling_for_the_next_United_Kingdom_general_election";
+      const API = "https://en.wikipedia.org/w/api.php?action=parse&format=json&formatversion=2&prop=text&page=" + encodeURIComponent(PAGE) + "&origin=*";
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text;
+        statusEl.className = "status" + (isError ? " error" : "");
+      }
+
+      function absolutize(root) {
+        root.querySelectorAll("a[href]").forEach((a) => {
+          const href = a.getAttribute("href");
+          if (!href) return;
+          if (href.startsWith("//")) a.href = "https:" + href;
+          else if (href.startsWith("/")) a.href = "https://en.wikipedia.org" + href;
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+        });
+        root.querySelectorAll("img[src]").forEach((img) => {
+          const src = img.getAttribute("src");
+          if (src && src.startsWith("//")) img.src = "https:" + src;
+          img.removeAttribute("srcset");
+          img.removeAttribute("width");
+          img.removeAttribute("height");
+          img.loading = "lazy";
+          img.decoding = "async";
+        });
+      }
+
+      function clean(root) {
+        root.querySelectorAll("script, style, .mw-editsection, .navbox, .reflist").forEach((n) => n.remove());
+      }
+
+      function sectionByHeadline(doc, regex) {
+        const headline = Array.from(doc.querySelectorAll(".mw-headline")).find((el) => regex.test((el.textContent || "").trim()));
+        if (!headline) return null;
+        const heading = headline.closest("h1,h2,h3,h4,h5,h6");
+        if (!heading) return null;
+        const level = Number(heading.tagName.slice(1));
+        const out = document.createElement("div");
+        let node = heading.nextElementSibling;
+        while (node) {
+          if (/^H[1-6]$/.test(node.tagName || "") && Number(node.tagName.slice(1)) <= level) break;
+          out.appendChild(node.cloneNode(true));
+          node = node.nextElementSibling;
+        }
+        return out;
+      }
+
+      function findChart(scope) {
+        const candidates = [
+          ".thumb img",
+          "figure img",
+          "img"
+        ];
+        for (const sel of candidates) {
+          const img = scope.querySelector(sel);
+          if (img) return img.closest(".thumb, figure") || img;
+        }
+        return null;
+      }
+
+      function findLatestPollingTable(scope) {
+        const tables = Array.from(scope.querySelectorAll("table.wikitable, table"));
+        if (!tables.length) return null;
+
+        const scored = tables.map((table) => {
+          const text = (table.textContent || "").toLowerCase();
+          let score = 0;
+          if (text.includes("pollster")) score += 3;
+          if (text.includes("fieldwork")) score += 2;
+          if (text.includes("con")) score += 1;
+          if (text.includes("lab")) score += 1;
+          if (text.includes("ref")) score -= 1;
+          return { table, score };
+        });
+
+        scored.sort((a, b) => b.score - a.score);
+        return scored[0].table;
+      }
+
+      try {
+        const res = await fetch(API);
+        if (!res.ok) throw new Error("Wikipedia API returned " + res.status);
+        const data = await res.json();
+        const html = data && data.parse && data.parse.text;
+        if (!html) throw new Error("Wikipedia API returned no page HTML");
+
+        const doc = new DOMParser().parseFromString(html, "text/html");
+
+        const scope =
+          sectionByHeadline(doc, /National poll results/i) ||
+          sectionByHeadline(doc, /Nationwide/i) ||
+          sectionByHeadline(doc, /Opinion polling/i) ||
+          doc.body;
+
+        const chartNode = findChart(scope) || findChart(doc.body);
+        const tableNode = findLatestPollingTable(scope) || findLatestPollingTable(doc.body);
+
+        if (!chartNode) throw new Error("Could not find the nationwide polling graphic");
+        if (!tableNode) throw new Error("Could not find the latest opinion polling table");
+
+        const chart = chartNode.cloneNode(true);
+        const table = tableNode.cloneNode(true);
+        clean(chart);
+        clean(table);
+        absolutize(chart);
+        absolutize(table);
+
+        chartSlot.appendChild(chart);
+        tableSlot.appendChild(table);
+        chartPanel.hidden = false;
+        tablePanel.hidden = false;
+
+        const now = new Date();
+        metaEl.hidden = false;
+        metaEl.innerHTML = "Loaded live from Wikipedia on " + now.toLocaleString() + ".";
+
+        setStatus("Live Wikipedia content loaded successfully.", false);
+      } catch (err) {
+        console.error(err);
+        setStatus("Could not load the polling graphic/table. " + (err && err.message ? err.message : "Unknown error."), true);
+      }
+    })();
+  </script>
+</body>
+</html>
